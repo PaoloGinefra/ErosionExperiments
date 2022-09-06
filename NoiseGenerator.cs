@@ -14,7 +14,7 @@ public class NoiseGenerator : MonoBehaviour
     public uint harmonics = 1;
 
     private Texture2D noiseTex;
-    private Color[] pix;
+    private float[] map;
     private Renderer rend;
 
     void Start()
@@ -22,67 +22,70 @@ public class NoiseGenerator : MonoBehaviour
         rend = GetComponent<Renderer>();
 
         noiseTex = new Texture2D(pixSize.x, pixSize.y);
-        pix = new Color[noiseTex.width * noiseTex.height];
+        map = new float[noiseTex.width * noiseTex.height];
         rend.material.mainTexture = noiseTex;
     }
 
-    void InitiatePixs(Color[] pix)
+    public float sampleNoise(float x, float y, uint harmonics = 1, float persistence = 0.5f, float lacunarity = 2f)
     {
-        for (int i = 0; i < pix.Length; i++)
+        float sample = 0;
+
+        float frequency = 1;
+        float amplitude = 1;
+
+        for (int h = 0; h < harmonics; h++, frequency *= lacunarity, amplitude *= persistence)
         {
-            pix[i] = new Color(0, 0, 0);
+            sample += (Mathf.PerlinNoise(x * frequency, y * frequency) * 2 - 1) * amplitude;
         }
+
+        return sample;
     }
 
-    void ComputeNoise(Color[] pix, float scale = 1.0f, uint harmonics = 1)
+    void populateMap(float[] map, int width, int height, float scale = 1.0f, uint harmonics = 1)
     {
         float minVal = 1f;
         float maxVal = -1f;
-        for (float y = 0.0f; y < noiseTex.height; y++)
+
+        for (float y = 0.0f; y < height; y++)
         {
-            for (float x = 0.0f; x < noiseTex.width; x++)
+            for (float x = 0.0f; x < width; x++)
             {
-                float X = origin.x + x / noiseTex.width * scale;
-                float Y = origin.y + y / noiseTex.height * scale;
+                float X = origin.x + x / width * scale;
+                float Y = origin.y + y / height * scale;
 
-                float sample = 0;
+                float sample = sampleNoise(X, Y, harmonics);
 
-                float frequency = 1;
-                float amplitude = 1;
+                map[(int)(x + y * noiseTex.height)] = sample;
 
-                for (int h = 0; h < harmonics; h++)
-                {
-                    sample += (Mathf.PerlinNoise(X * frequency, Y * frequency) * 2 - 1) * amplitude;
-                    frequency *= 2;
-                    amplitude /= 2;
-                }
-
-                pix[(int)(x + y * noiseTex.height)] += new Color(sample, sample, sample);
                 minVal = Mathf.Min(minVal, sample);
                 maxVal = Mathf.Max(maxVal, sample);
             }
         }
 
-        for (int i = 0; i < pix.Length; i++)
+        for (int i = 0; i < map.Length; i++)
         {
-            float val = (pix[i].r - minVal) / (maxVal - minVal);
-            pix[i] = new Color(val, val, val);
+            //Inverse lerping between minVal and maxVal for map[i]
+            map[i] = (map[i] - minVal) / (maxVal - minVal);
         }
     }
 
-    void UpdateTex(Color[] pix, Texture2D tex)
+    void UpdateTex(float[] map, Texture2D tex)
     {
-        tex.SetPixels(pix);
+        Color[] pixels = new Color[tex.width * tex.height];
+
+        for (int i = 0; i < map.Length; i++)
+        {
+            float value = map[i];
+            pixels[i] = new Color(value, value, value);
+        }
+
+        tex.SetPixels(pixels);
         tex.Apply();
     }
 
     void Update()
     {
-        InitiatePixs(pix);
-
-        ComputeNoise(pix, scale, harmonics);
-
-        //RescalePix(pix);
-        UpdateTex(pix, noiseTex);
+        populateMap(map, pixSize.x, pixSize.y, scale, harmonics);
+        UpdateTex(map, noiseTex);
     }
 }
