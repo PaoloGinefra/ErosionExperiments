@@ -19,17 +19,42 @@ public class Mesher : MonoBehaviour
     public float noiseScale;
     public uint harmonics;
 
+
+    public Transform dropTransform;
+    public LineRenderer lr;
+
+    public float wait = 0.5f;
+
+
     private MeshFilter meshFilter;
     private Mesh mesh;
     private List<float> map = new List<float>();
+
+    private Simulator simulator;
+
+    private Drop drop;
 
 
     void Start()
     {
         meshFilter = GetComponent<MeshFilter>();
 
+        simulator = new Simulator(
+            p_inertia: 0.1f,
+            p_maxStep: 50,
+            p_radius: 1
+            );
+
         mesh = new Mesh { name = "Procedural Terrain" };
         meshFilter.mesh = mesh;
+
+        map = new List<float>();
+
+        drop = new Drop((int)res);
+
+        NoiseGenerator.populateMap(map, res, res, noiseOrigin, noiseScale, harmonics);
+
+        mapMesh(map, mesh, size, res);
     }
 
     void mapMesh(List<float> map, Mesh mesh, float size, uint res)
@@ -73,11 +98,30 @@ public class Mesher : MonoBehaviour
         mesh.RecalculateTangents();
     }
 
+    float t = 0;
+
     void Update()
     {
-        map = new List<float>();
+        if (t > wait)
+        {
+            simulator.simulateDrop(map, (int)res);
 
-        NoiseGenerator.populateMap(map, res, res, noiseOrigin, noiseScale, harmonics);
-        mapMesh(map, mesh, size, res);
+            /*
+            Debug.Log(drop.sediment);
+
+            int index = Mathf.RoundToInt(drop.pos.x) + Mathf.RoundToInt(drop.pos.y) * (int)res;
+
+            dropTransform.position = new Vector3((drop.pos.x / res - 0.5f) * size, map[index] * heightScale + 0.1f, (drop.pos.y / res - 0.5f) * size);
+
+            lr.positionCount++;
+            lr.SetPosition(lr.positionCount - 1, dropTransform.position);*/
+
+            mapMesh(map, mesh, size, res);
+
+
+            t = 0;
+        }
+
+        t += Time.deltaTime;
     }
 }

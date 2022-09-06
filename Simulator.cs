@@ -34,7 +34,7 @@ public class Simulator
         this.p_minSlope = p_minSlope; this.p_gravity = p_gravity; this.p_maxStep = p_maxStep;
     }
 
-    public float heightAt(float[] map, int gridSize, Vector2 pos)
+    public float heightAt(List<float> map, int gridSize, Vector2 pos)
     {
         int x = Mathf.FloorToInt(pos.x);
         int y = Mathf.FloorToInt(pos.y);
@@ -53,7 +53,7 @@ public class Simulator
         return Mathf.Lerp(r1, r2, v);
     }
 
-    public Vector2 gradientAt(float[] map, int gridSize, Vector2 pos)
+    public Vector2 gradientAt(List<float> map, int gridSize, Vector2 pos)
     {
         int x = Mathf.FloorToInt(pos.x);
         int y = Mathf.FloorToInt(pos.y);
@@ -69,17 +69,17 @@ public class Simulator
         return new Vector2(
             (1 - v) * (map[i10] - map[i00]) + v * (map[i11] - map[i01]),
             (1 - u) * (map[i01] - map[i00]) + u * (map[i11] - map[i10])
-        );
+        ).normalized;
     }
 
-    void updateDir(float[] map, int gridSize, Drop drop)
+    void updateDir(List<float> map, int gridSize, Drop drop)
     {
         Vector2 g = this.gradientAt(map, gridSize, drop.pos);
-        drop.dir = Vector2.Lerp(g, drop.dir, this.p_inertia).normalized;
+        drop.dir = Vector2.Lerp(drop.dir, g, this.p_inertia).normalized;
     }
 
     //Updates the drop's postion and returns the height difference of the step
-    void updateDrop(Drop drop, float[] map, int gridSize)
+    void updateDrop(Drop drop, List<float> map, int gridSize)
     {
         //Updates the drop's direction
         this.updateDir(map, gridSize, drop);
@@ -89,6 +89,10 @@ public class Simulator
         float hOld = this.heightAt(map, gridSize, posOld);
 
         drop.pos += drop.dir;
+
+        if (!this.isValid(drop, gridSize))
+            return;
+
         float hNew = this.heightAt(map, gridSize, drop.pos);
 
         float hDif = hNew - hOld;
@@ -102,15 +106,14 @@ public class Simulator
             if (drop.sediment <= hDif)
             {
                 depositAmount = drop.sediment;
-                drop.sediment = 0;
             }
             else
             {
                 depositAmount = hDif;
-                drop.sediment -= hDif;
             }
 
             this.DepositAt(map, gridSize, posOld, depositAmount);
+            drop.sediment -= depositAmount;
         }
         //if it moved downhill
         else
@@ -122,11 +125,13 @@ public class Simulator
             {
                 float depositAmount = (drop.sediment - c) * this.p_deposition;
                 this.DepositAt(map, gridSize, drop.pos, depositAmount);
+                drop.sediment -= depositAmount;
             }
             else
             {
                 float erosionAmount = Mathf.Min((c - drop.sediment) * this.p_erosion, -hDif);
                 this.ErodeAt(map, gridSize, posOld, erosionAmount);
+                drop.sediment += erosionAmount;
             }
         }
 
@@ -137,8 +142,9 @@ public class Simulator
         drop.water = drop.water * (1 - p_evaporation);
     }
 
-    void ErodeAt(float[] map, int gridSize, Vector2 pos, float amount)
+    public void ErodeAt(List<float> map, int gridSize, Vector2 pos, float amount)
     {
+        //Debug.Log("Erode: " + amount.ToString());
         Dictionary<int, float> weights = new Dictionary<int, float>();
 
         //Compute all the weights
@@ -175,8 +181,9 @@ public class Simulator
         }
     }
 
-    void DepositAt(float[] map, int gridSize, Vector2 pos, float amount)
+    public void DepositAt(List<float> map, int gridSize, Vector2 pos, float amount)
     {
+        //Debug.Log("Deposit: " + amount.ToString());
         int x = Mathf.FloorToInt(pos.x);
         int y = Mathf.FloorToInt(pos.y);
 
@@ -203,5 +210,14 @@ public class Simulator
     public bool isValid(Drop drop, int gridSize)
     {
         return drop.pos.x >= 0 && drop.pos.x <= gridSize - 1 && drop.pos.y >= 0 && drop.pos.y <= gridSize - 1;
+    }
+
+    public void simulateDrop(List<float> map, int gridSize)
+    {
+        Drop drop = new Drop(gridSize);
+        for (int step = 0; step < this.p_maxStep && this.isValid(drop, gridSize); step++)
+        {
+            this.updateDrop(drop, map, gridSize);
+        }
     }
 }

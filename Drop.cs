@@ -14,5 +14,7 @@ public class Drop
             Random.Range(0, gridSize - 1),
             Random.Range(0, gridSize - 1)
         );
+
+        this.dir = Random.insideUnitCircle;
     }
 }
