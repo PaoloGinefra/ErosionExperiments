@@ -14,7 +14,7 @@ public class NoiseGenerator : MonoBehaviour
     public uint harmonics = 1;
 
     private Texture2D noiseTex;
-    private float[] map;
+    private List<float> map = new List<float>();
     private Renderer rend;
 
     void Start()
@@ -22,11 +22,10 @@ public class NoiseGenerator : MonoBehaviour
         rend = GetComponent<Renderer>();
 
         noiseTex = new Texture2D(pixSize.x, pixSize.y);
-        map = new float[noiseTex.width * noiseTex.height];
         rend.material.mainTexture = noiseTex;
     }
 
-    public float sampleNoise(float x, float y, uint harmonics = 1, float persistence = 0.5f, float lacunarity = 2f)
+    public static float sampleNoise(float x, float y, uint harmonics = 1, float persistence = 0.5f, float lacunarity = 2f)
     {
         float sample = 0;
 
@@ -41,7 +40,7 @@ public class NoiseGenerator : MonoBehaviour
         return sample;
     }
 
-    void populateMap(float[] map, int width, int height, float scale = 1.0f, uint harmonics = 1)
+    public static void populateMap(List<float> map, uint width, uint height, Vector2 origin, float scale = 1.0f, uint harmonics = 1)
     {
         float minVal = 1f;
         float maxVal = -1f;
@@ -53,27 +52,27 @@ public class NoiseGenerator : MonoBehaviour
                 float X = origin.x + x / width * scale;
                 float Y = origin.y + y / height * scale;
 
-                float sample = sampleNoise(X, Y, harmonics);
+                float sample = NoiseGenerator.sampleNoise(X, Y, harmonics);
 
-                map[(int)(x + y * noiseTex.height)] = sample;
+                map.Add(sample);
 
                 minVal = Mathf.Min(minVal, sample);
                 maxVal = Mathf.Max(maxVal, sample);
             }
         }
 
-        for (int i = 0; i < map.Length; i++)
+        for (int i = 0; i < map.Count; i++)
         {
             //Inverse lerping between minVal and maxVal for map[i]
             map[i] = (map[i] - minVal) / (maxVal - minVal);
         }
     }
 
-    void UpdateTex(float[] map, Texture2D tex)
+    void UpdateTex(List<float> map, Texture2D tex)
     {
         Color[] pixels = new Color[tex.width * tex.height];
 
-        for (int i = 0; i < map.Length; i++)
+        for (int i = 0; i < map.Count; i++)
         {
             float value = map[i];
             pixels[i] = new Color(value, value, value);
@@ -85,7 +84,12 @@ public class NoiseGenerator : MonoBehaviour
 
     void Update()
     {
-        populateMap(map, pixSize.x, pixSize.y, scale, harmonics);
+        map = new List<float>();
+
+        noiseTex = new Texture2D(pixSize.x, pixSize.y);
+        rend.material.mainTexture = noiseTex;
+
+        populateMap(map, (uint)pixSize.x, (uint)pixSize.y, origin, scale, harmonics);
         UpdateTex(map, noiseTex);
     }
 }
